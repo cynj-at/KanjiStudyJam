@@ -6,7 +6,7 @@ This project started in my year in Japan, where I learned the Kanji with Heisig'
 1. You don't need to buy Max/Msp, but you have to download it, otherwise there won't be any sound output (https://cycling74.com/downloads).
 2. In Max, please add the Folder "{Project-Folder}/Max/Samples/Selection" to your search path in Max/Msp -> options -> File Preferences -> Add Path (little "+" on bottom bar). If you don't, the main beat will be missing.
 3. If you don't want the game to automatically start, please remove the line "./KanjiStudyJam" in the build.sh and type "./KanjiStudyJam" yourself after compiling.
-4. If not, navigate to the project folder in your terminal and just type "./build.sh" -> as long as you have a c/c++ compiler ready, it should commpile and start.
+4. If not, navigate to the project folder in your terminal and just type "./build.sh" -> as long as you have a c/c++ compiler ready, it should compile and start.
 5. Except for Max/Msp there won't be any dependencies for the reason, that i won't update it permanently and so can assure, that all libraries work. If you still want to use later version of the dependencies, please feel free to change the "CMakeFiles.txt".
 
 The game itself is pretty self-explanatory. If there should be questions, just send me a message: laani@tutanota.com
