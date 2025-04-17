@@ -58,7 +58,7 @@ void DrawTextB(const char *txt, int x, int y, int fS, Color col)
 }
 
 
-// Define your own key mappings for German keyboard
+// german keyboard
 std::map<int, std::string> keyToChar = {
     {KEY_A, "a"}, {KEY_B, "b"}, {KEY_C, "c"}, {KEY_D, "d"}, {KEY_E, "e"},
     {KEY_F, "f"}, {KEY_G, "g"}, {KEY_H, "h"}, {KEY_I, "i"}, {KEY_J, "j"},
@@ -74,6 +74,7 @@ std::map<int, std::string> keyToChar = {
     {KEY_RIGHT_BRACKET, "+"}, {KEY_GRAVE, "^"}, {KEY_BACKSPACE, "\b"}
 };
 
+//old unix getcwd
 // Function to get the current working directory
 // std::string getCurrentWorkingDirectory() {
 //     char cwd[1024];
@@ -97,7 +98,6 @@ std::string getCurrentWorkingDirectory() {
 }
 
 
-// Function to get character from key
 std::string GetCharFromKey(int key, bool shiftPressed) {
     if (keyToChar.find(key) != keyToChar.end()) {
         std::string character = keyToChar[key];
@@ -135,7 +135,6 @@ std::string GetCharFromKey(int key, bool shiftPressed) {
 
 
 
-// Function prototypes
 std::vector<Kanji> initialize();
 Kanji getRandomKanji(const std::vector<Kanji>& kanjiVec);
 std::string toLowerCase(const std::string& str);
@@ -234,7 +233,6 @@ std::string toLowerCase(const std::string& str) {
     return result;
 }
 
-// Check if the input keyword matches any keyword for the given Kanji
 bool checkKeyword(const Kanji& rand_kanji, const std::string& inp) {
     if (inp == "#"){
         return true;
@@ -248,24 +246,19 @@ bool checkKeyword(const Kanji& rand_kanji, const std::string& inp) {
     
 }
 
-// Check if the mouse is over a rectangle
 bool CheckMouseOver(Rectangle rect) {
     Vector2 mousePos = GetMousePosition();
     return (mousePos.x >= rect.x && mousePos.x <= rect.x + rect.width &&
             mousePos.y >= rect.y && mousePos.y <= rect.y + rect.height);
 }
 
-// Function to draw centered text
 void DrawCenteredText(Font font, const char* text, int posX, int posY, int fontSize, Color color)
 {
-    // Measure text dimensions
     Vector2 textSize = MeasureTextEx(font, text, fontSize, 0);
 
-    // Calculate position to center horizontally and vertically
     float textPosX = posX - (textSize.x / 2);
     float textPosY = posY - (textSize.y / 2);
 
-    // Draw the text centered
     DrawTextEx(font, text, { textPosX, textPosY }, fontSize, 0, color);
 }
 
@@ -288,8 +281,6 @@ void removeEntriesWithInstrCounter(std::vector<KanjiEntry>& entries, int valueTo
     entries.erase(newEnd, entries.end());
 }
 
-
-// Button
 
 typedef struct {
     Rectangle bounds;
@@ -331,15 +322,12 @@ bool isDigitString(const char* str) {
 
 int main() {
 
-    //INITIALIZE
     std::string cwd = getCurrentWorkingDirectory();
     //std::cout << "Current Directory: " << cwd << std::endl;
     std::vector<Kanji> Kanji_obj = initialize();
-    // Check if Kanji_obj is empty or has insufficient data
     if (Kanji_obj.empty()) {
         std::cerr << "Error: Kanji_obj is empty or not initialized correctly!" << std::endl;
-        // For example, you might throw an exception or exit gracefully.
-        exit(EXIT_FAILURE);  // Exit the program with a failure status
+        exit(EXIT_FAILURE);
     }
 
     //std::string ttf_font = cwd + "/font/Unifontexmono-DYWdE.ttf";
@@ -352,8 +340,8 @@ int main() {
 
     
     // GUI setup
-    int screenWidth = 1680;
-    int screenHeight = 1050;
+    int screenWidth = 1440; // 1680 normally
+    int screenHeight = 720; // 1050 normally
     std::vector<Kanji> cor_Kanji;
     std::vector<Kanji> wro_Kanji;
     std::vector<KanjiEntry> all_Kanji;
@@ -394,6 +382,7 @@ int main() {
     bool invalidRound = false;
     bool resultsWindow = false;
     Rectangle textBoxRounds = { (screenWidth / 2.0f) - (225/2), (screenHeight / 2.0f) - (50/2), 225, 50 };
+    Rectangle answerBox = { (screenWidth / 2.0f) - (225/2), (screenHeight / 2.0f) - (50/2), 225, 50 };
     Rectangle gameKanjiBox = { (screenWidth / 4.0f) - (225/2), (screenHeight / 2.0f) - (50/2) - 200, 225, 50};
     bool mouseOnTextRounds = false;
     bool backspacePressedLastFrame = false;
@@ -430,9 +419,9 @@ int main() {
     float centerPosY;
     centerPosX = screenWidth / 2.0f;
     centerPosY = screenHeight / 2.0f;
-    const int maxItemsPerRow = 15; // Adjust this number as needed
-    const int itemSpacing = 55;    // Horizontal spacing between items
-    const int rowSpacing = 55;     // Vertical spacing between rows
+    const int maxItemsPerRow = 15; // result screen, max items
+    const int itemSpacing = 55;    // horizontal spacing between items
+    const int rowSpacing = 55;     // vertical spacing between rows
     int kanjiCounter = 0;
     int instrCounter = 0;
     int instrTotalCounter = 0;
@@ -456,14 +445,12 @@ int main() {
     Button roundBasedButton = { { (centerPosX/2.0f)-(buttonWidth/2.0f), (centerPosY)-(buttonHeight/2.0f), buttonWidth, buttonHeight }, LIGHTGRAY, DARKGRAY, GRAY, "Rounds" };
     Button timeBasedButton = { { (centerPosX+(centerPosX/2.0f))-(buttonWidth/2.0f), (centerPosY)-(buttonHeight/2.0f), buttonWidth, buttonHeight}, LIGHTGRAY, DARKGRAY, GRAY, "Time" };
     float playTime;
-    
-    // Draw results window until user decides to close
-    // Update alpha value based on elapsed time
+
     
     finTextColor.a = 0;
     std::string finalText = "Thank you for listening!";
-    float alphaFinText = 0.0f; // Starting with fully transparent text
-    const float increment = 1.0f / 10.0f; // Increment alpha over 10 seconds
+    float alphaFinText = 0.0f; // starting with fully transparent text
+    const float increment = 1.0f / 10.0f; // increment alpha over 10 seconds
     bool oscSent = false;
     double startTimeFinText = 0.0;
     SetTargetFPS(60);
@@ -493,23 +480,19 @@ int main() {
 
             DrawButton(roundBasedButton, fontSize);
             if (IsButtonPressed(roundBasedButton)) {
-                // Handle button click
                 roundBased = true;
                 startScreen = false;
             }
             DrawButton(timeBasedButton, fontSize);
             if (IsButtonPressed(timeBasedButton)) {
-                // Handle button click
                 timeBased = true;
                 startScreen = false;
             }
 
             EndDrawing();
         }
-        // Update
         else if (roundBased && !startGame && !resultsWindow) {
             modeRound = true;
-            // Number of rounds selection GUI
             if (CheckCollisionPointRec(GetMousePosition(), textBoxRounds)) {
                 mouseOnTextRounds = true;
                 if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
@@ -541,25 +524,23 @@ int main() {
 
                     if ((key >= KEY_ZERO && key <= KEY_NINE) && (roundCount < MAX_INPUT_CHARS_ROUND)) {
                         name[roundCount] = (char)key;
-                        name[roundCount + 1] = '\0'; // Add null terminator at the end of the string.
+                        name[roundCount + 1] = '\0'; // null terminator
                         roundCount++;
                     }
                 }
 
                 if (IsKeyDown(KEY_BACKSPACE)) {
                     if (backspacePressedLastFrame == false) {
-                        // This means the backspace key was just pressed in this frame
                         if (roundCount > 0) {
                             name[--roundCount] = '\0';
                         }
-                        backspacePressedTime = 0; // Reset the delay counter
+                        backspacePressedTime = 0;
                     } else {
-                        // Continuous backspace delete
                         if (backspacePressedTime > BACKSPACE_DELAY) {
                             if (roundCount > 0) {
                                 name[--roundCount] = '\0';
                             }
-                            backspacePressedTime = 0; // Reset the delay counter
+                            backspacePressedTime = 0;
                         } else {
                             backspacePressedTime++;
                         }
@@ -583,25 +564,23 @@ int main() {
 
                     if ((key >= KEY_ZERO && key <= KEY_NINE) && (gameKanjiCount < MAX_INPUT_CHARS_ROUND)) {
                         gameKanji[gameKanjiCount] = (char)key;
-                        gameKanji[gameKanjiCount + 1] = '\0'; // Add null terminator at the end of the string.
+                        gameKanji[gameKanjiCount + 1] = '\0'; // null terminator
                         gameKanjiCount++;
                     }
                 }
 
                 if (IsKeyDown(KEY_BACKSPACE)) {
                     if (backspacePressedLastFrame == false) {
-                        // This means the backspace key was just pressed in this frame
                         if (gameKanjiCount > 0) {
                             gameKanji[--gameKanjiCount] = '\0';
                         }
-                        backspacePressedTime = 0; // Reset the delay counter
+                        backspacePressedTime = 0;
                     } else {
-                        // Continuous backspace delete
                         if (backspacePressedTime > BACKSPACE_DELAY) {
                             if (gameKanjiCount > 0) {
                                 gameKanji[--gameKanjiCount] = '\0';
                             }
-                            backspacePressedTime = 0; // Reset the delay counter
+                            backspacePressedTime = 0;
                         } else {
                             backspacePressedTime++;
                         }
@@ -731,14 +710,14 @@ int main() {
                     char formattedTextGameKanji[100];
                     snprintf(formattedTextGameKanji, sizeof(formattedTextGameKanji), "Max Heisig Index Set to %s", gameKanji);
 
-                    // Center the text
+                    
                     int textWidth = MeasureText(formattedTextGameKanji, 20);
                     DrawText(formattedTextGameKanji, centerPosX - textWidth / 2, centerPosY - 150, 20, RED);
                 }else{
                     char formattedTextGameKanji[100];
                     snprintf(formattedTextGameKanji, sizeof(formattedTextGameKanji), "Max Heisig Index Set to %d", MAX_KANJI_DEFAULT);
 
-                    // Center the text
+                    
                     int textWidth = MeasureText(formattedTextGameKanji, 20);
                     DrawText(formattedTextGameKanji, centerPosX - textWidth / 2, centerPosY - 150, 20, RED);
                 }
@@ -807,25 +786,23 @@ int main() {
 
                         if ((key >= KEY_ZERO && key <= KEY_NINE) && (gameKanjiCount < MAX_INPUT_CHARS_ROUND)) {
                             gameKanji[gameKanjiCount] = (char)key;
-                            gameKanji[gameKanjiCount + 1] = '\0'; // Add null terminator at the end of the string.
+                            gameKanji[gameKanjiCount + 1] = '\0'; // null terminator
                             gameKanjiCount++;
                         }
                     }
 
                     if (IsKeyDown(KEY_BACKSPACE)) {
                         if (backspacePressedLastFrame == false) {
-                            // This means the backspace key was just pressed in this frame
                             if (gameKanjiCount > 0) {
                                 gameKanji[--gameKanjiCount] = '\0';
                             }
-                            backspacePressedTime = 0; // Reset the delay counter
+                            backspacePressedTime = 0;
                         } else {
-                            // Continuous backspace delete
                             if (backspacePressedTime > BACKSPACE_DELAY) {
                                 if (gameKanjiCount > 0) {
                                     gameKanji[--gameKanjiCount] = '\0';
                                 }
-                                backspacePressedTime = 0; // Reset the delay counter
+                                backspacePressedTime = 0;
                             } else {
                                 backspacePressedTime++;
                             }
@@ -852,25 +829,23 @@ int main() {
 
                         if ((key >= KEY_ZERO && key <= KEY_NINE) && (minuteCount < MAX_INPUT_CHARS_MINSEC)) {
                             customMinutes[minuteCount] = (char)key;
-                            customMinutes[minuteCount + 1] = '\0'; // Add null terminator at the end of the string.
+                            customMinutes[minuteCount + 1] = '\0';
                             minuteCount++;
                         }
                     }
 
                     if (IsKeyDown(KEY_BACKSPACE)) {
                         if (!backspacePressedLastFrameMinute) {
-                            // This means the backspace key was just pressed in this frame
                             if (minuteCount > 0) {
                                 customMinutes[--minuteCount] = '\0';
                             }
-                            backspacePressedTime = 0; // Reset the delay counter
+                            backspacePressedTime = 0;
                         } else {
-                            // Continuous backspace delete
                             if (backspacePressedTime > BACKSPACE_DELAY) {
                                 if (minuteCount > 0) {
                                     customMinutes[--minuteCount] = '\0';
                                 }
-                                backspacePressedTime = 0; // Reset the delay counter
+                                backspacePressedTime = 0;
                             } else {
                                 backspacePressedTime++;
                             }
@@ -892,25 +867,23 @@ int main() {
 
                         if ((key >= KEY_ZERO && key <= KEY_NINE) && (secondCount < MAX_INPUT_CHARS_MINSEC)) {
                             customSeconds[secondCount] = (char)key;
-                            customSeconds[secondCount + 1] = '\0'; // Add null terminator at the end of the string.
+                            customSeconds[secondCount + 1] = '\0';
                             secondCount++;
                         }
                     }
 
                     if (IsKeyDown(KEY_BACKSPACE)) {
                         if (!backspacePressedLastFrameSecond) {
-                            // This means the backspace key was just pressed in this frame
                             if (secondCount > 0) {
                                 customSeconds[--secondCount] = '\0';
                             }
-                            backspacePressedTime = 0; // Reset the delay counter
+                            backspacePressedTime = 0;
                         } else {
-                            // Continuous backspace delete
                             if (backspacePressedTime > BACKSPACE_DELAY) {
                                 if (secondCount > 0) {
                                     customSeconds[--secondCount] = '\0';
                                 }
-                                backspacePressedTime = 0; // Reset the delay counter
+                                backspacePressedTime = 0;
                             } else {
                                 backspacePressedTime++;
                             }
@@ -932,8 +905,6 @@ int main() {
                 ClearBackground(mainColor);
                 
 
-                // std::string rowString = "Time Based:";
-                // DrawCenteredText(GetFontDefault(), rowString.c_str(), centerPosX, centerPosY - 75, fontSize, DARKGRAY);
                 Button time5Button = {{(centerPosX/2.0f)-(buttonWidth/2.0f), (centerPosY)-(buttonHeight/2.0f), buttonWidth, buttonHeight}, LIGHTGRAY, DARKGRAY, GRAY, "5min"};
                 DrawButton(time5Button, fontSize);
                 Button time10Button = {{(centerPosX/2.0f)-(buttonWidth/2.0f) + (buttonWidth + 50), (centerPosY)-(buttonHeight/2.0f), buttonWidth, buttonHeight}, LIGHTGRAY, DARKGRAY, GRAY, "10min"};
@@ -1005,7 +976,6 @@ int main() {
                     char formattedTextCustomTime[100];
                     snprintf(formattedTextCustomTime, sizeof(formattedTextCustomTime), "Time set to %s minutes and %s seconds!", customMinutes, customSeconds);
 
-                    // Center the text
                     int textWidth = MeasureText(formattedTextCustomTime, 20);
                     DrawText(formattedTextCustomTime, centerPosX - textWidth / 2, centerPosY - 300, 20, RED);
                 }
@@ -1037,14 +1007,12 @@ int main() {
                     char formattedTextGameKanji[100];
                     snprintf(formattedTextGameKanji, sizeof(formattedTextGameKanji), "Max Heisig Index Set to %s", gameKanji);
 
-                    // Center the text
                     int textWidth = MeasureText(formattedTextGameKanji, 20);
                     DrawText(formattedTextGameKanji, centerPosX - textWidth / 2, centerPosY - 150, 20, RED);
                 }else{
                     char formattedTextGameKanji[100];
                     snprintf(formattedTextGameKanji, sizeof(formattedTextGameKanji), "Max Heisig Index Set to %d", MAX_KANJI_DEFAULT);
 
-                    // Center the text
                     int textWidth = MeasureText(formattedTextGameKanji, 20);
                     DrawText(formattedTextGameKanji, centerPosX - textWidth / 2, centerPosY - 150, 20, RED);
                 }
@@ -1067,7 +1035,6 @@ int main() {
 
                     
                     
-                    //setTime = false;
                 }
                 if (IsButtonPressed(time5Button)){
                     while (minuteCount > 0) {
@@ -1087,7 +1054,6 @@ int main() {
                     showTimeMessage5 = true;
                     
                     
-                    //setTime = false;
                 }
                 if (IsKeyPressed(KEY_ENTER) && (customMinutesFieldActive || customSecondFieldActive || showCustomTime)){
                     totalMinutes = atoi(customMinutes);
@@ -1138,7 +1104,6 @@ int main() {
                         }
                     }
 
-                // Countdown
                     sendOSCReset(1);
                     currentKanji = getRandomKanji(game_Kanji);
                     for (int i = 5; i > 0; --i) {
@@ -1148,9 +1113,9 @@ int main() {
                         DrawText(TextFormat("%d", i), centerPosX - 32, centerPosY - 32, 64, GRAY);
                         EndDrawing();
                         std::cout << i << std::endl;
-                        std::this_thread::sleep_for(std::chrono::seconds(1)); // Delay for 1 second
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
                     }
-                    startTime = time(NULL); // Record the start time
+                    startTime = time(NULL);
                     startGame = true;
                     std::cout << "Start Game set to true" << std::endl;
                     sendOSCNAutoStart(1);
@@ -1164,7 +1129,6 @@ int main() {
         else if (startGame) {
             HideCursor();
             //std::cout << "Enter Game" << std::endl;
-            // Handle input
             time_t currentTime;
             double elapsedTime;
             std::stringstream timeStream;
@@ -1172,14 +1136,11 @@ int main() {
             if (modeTime){
                 currentTime = time(NULL);
                 elapsedTime = difftime(currentTime, startTime);
-                // Check if the time limit is reached
                 if (elapsedTime >= playTime) {
-                // Time limit reached, end the game
                 startGame = false;
                 resultsWindow = true;
                 }
 
-                // Calculate remaining time
                 double remainingTime = playTime - elapsedTime;
                 int minutes = static_cast<int>(remainingTime) / 60;
                 int seconds = static_cast<int>(remainingTime) % 60;
@@ -1190,8 +1151,8 @@ int main() {
             }
             
 
-            bool shiftPressed = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT); //check if shift is Pressed
-            int key = GetKeyPressed(); //get input from keyboard
+            bool shiftPressed = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+            int key = GetKeyPressed();
             
             if (IsKeyDown(KEY_BACKSPACE)) {
                 if (backspacePressedLastFrame == false){
@@ -1219,7 +1180,6 @@ int main() {
                 backspacePressedLastFrame = false;
             }
 
-            // Check if the key corresponds to a printable character
             if ((key >= 32 && key <= 126) || key == KEY_ENTER) {
                 if (key == KEY_ENTER) {
                     if (!inputText.empty()) {
@@ -1228,10 +1188,10 @@ int main() {
                         std::cout << curJlpt << std::endl;
                         int curStrokeCnt = currentKanji.getStrokes();
                         const std::vector<std::string>& curParts = currentKanji.getParts();
-                        // Get the length of the parts vector
+
                         size_t partsLength = curParts.size();
-                        // Kanji Counter!!!
-                        if(kanjiCounter % 8 == 0){
+
+                        if(kanjiCounter % 8 == 0){ // 8 Kanji = 1 Instrument
                             
                             instrCounter ++;
                             instrTotalCounter ++;
@@ -1293,10 +1253,10 @@ int main() {
                                     jlpt = std::stoi(curJlpt);
                                 } catch (const std::invalid_argument& e) {
                                     std::cerr << "Invalid argument: " << e.what() << std::endl;
-                                    jlpt = -1; // Set default value
+                                    jlpt = -1; //set default
                                 } catch (const std::out_of_range& e) {
                                     std::cerr << "Out of range: " << e.what() << std::endl;
-                                    jlpt = -1; // Set default value 
+                                    jlpt = -1; //set default
                                 }
                             }
                             std::cout << jlpt << std::endl;
@@ -1514,7 +1474,6 @@ int main() {
                         inputText = ""; // Clear input after submission
                         kanjiCounter ++;
 
-                        // Move to next round
                         if (roundBased){
                             if (++round < numberOfRounds) {
                                 currentKanji = getRandomKanji(game_Kanji);
@@ -1568,7 +1527,6 @@ int main() {
 
                 DrawCenteredText(kanjiFont, keyWrdText.c_str(), centerPosX, 70, fontSize, DARKGRAY);
 
-                
 
                 DrawCenteredText(kanjiFont, inputText.c_str(), centerPosX, centerPosY + MeasureTextEx(kanjiFont, (currentKanji.getKanji()).c_str(), fontSizeKanji, 0).y + 30, fontSize, BLACK);
 
@@ -1635,12 +1593,12 @@ int main() {
     
                         if (lastKanji.correct){
                                 for (size_t i = 0; i < kanjisKeywords.size(); i++) {
-                                int keyPosY = 150 + rowKey * rowSpacing + i * 32;  // Adjust this calculation based on your spacing logic
+                                int keyPosY = 150 + rowKey * rowSpacing + i * 32;
                                 DrawTextEx(kanjiFont, kanjisKeywords[i].c_str(), (Vector2){10, (float)keyPosY}, fontSize, 0, textColor);
                             }
                             }else if (!lastKanji.correct){
                                 for (size_t i = 0; i < kanjisKeywords.size(); i++) {
-                                int keyPosY = 150 + rowKey * rowSpacing + i * 32;  // Adjust this calculation based on your spacing logic
+                                int keyPosY = 150 + rowKey * rowSpacing + i * 32;
                                 DrawTextEx(kanjiFont, kanjisKeywords[i].c_str(), (Vector2){centerPosX + 100, (float)keyPosY}, fontSize, 0, textColor);
                             }
                             }
@@ -1659,12 +1617,11 @@ int main() {
             if (oscSent) {
                 double elapsedTime = GetTime() - startTimeFinText;
                 alphaFinText = (float)(elapsedTime / 10.0);
-                if (alphaFinText > 1.0f) alphaFinText = 1.0f; // Cap the alpha value at 1.0
-                finTextColor.a = (unsigned char)(alphaFinText * 255); // Update text color alpha
+                if (alphaFinText > 1.0f) alphaFinText = 1.0f;
+                finTextColor.a = (unsigned char)(alphaFinText * 255);
             }
 
 
-            // Check for any key pressed to exit results window
             if (IsKeyPressed(KEY_ENTER)){
                 sendOSCNAutoEnd(1);
                 // std::this_thread::sleep_for(std::chrono::seconds(10));
@@ -1672,12 +1629,11 @@ int main() {
                 startTimeFinText = GetTime();
             }
             else if (IsKeyPressed(KEY_ESCAPE)) {
-                resultsWindow = false; // Exit results window mode
+                resultsWindow = false;
                 //sendOSCNAutoStart(1);
                 //sendOSCNAutoEnd(1);
             }
             
-            // Draw results screen
             BeginDrawing();
             ClearBackground(RAYWHITE);
 
@@ -1685,7 +1641,6 @@ int main() {
             DrawCenteredText(kanjiFont, finalText.c_str(), centerPosX, centerPosY, fontSizeKanji, finTextColor);
             }
         
-            // Draw your results UI here...
             std::string resultText = "Results Screen...press Enter to fade out sound ESC to exit.";
             DrawCenteredText(kanjiFont, resultText.c_str(), centerPosX, 20, fontSize, DARKGRAY);
             DrawTextB(("Correct Kanji (" + std::to_string(cor_Kanji.size()) + ") :").c_str(), 10, 50, fontSize, textColor);
@@ -1694,13 +1649,11 @@ int main() {
                     const Kanji& kanji = cor_Kanji[i];
                     std::string kanjiText = kanji.getKanji();
 
-                    // Calculate position for each text
                     int row = i / maxItemsPerRow;
                     int col = i % maxItemsPerRow;
                     int xPosR = 10 + col * itemSpacing; 
                     int yPosR = 85 + row * rowSpacing;
 
-                    // Draw the text using DrawTextEx
                     DrawTextEx(kanjiFont, kanjiText.c_str(), (Vector2){ (float)xPosR, (float)yPosR}, fontSize, 0, textColor);
                     }
             DrawTextB(("Wrong Kanji (" + std::to_string(wro_Kanji.size()) + ") :").c_str(), centerPosX+100, 50, fontSize, textColor);
@@ -1709,13 +1662,11 @@ int main() {
                     const Kanji& kanji = wro_Kanji[i];
                     std::string kanjiText = kanji.getKanji();
 
-                    // Calculate position for each text
                     int row = i / maxItemsPerRow;
                     int col = i % maxItemsPerRow;
                     int xPosW = centerPosX + 100 + col * itemSpacing;
                     int yPosW = 85 + row * rowSpacing;
 
-                    // Draw the text using DrawTextEx
                     DrawTextEx(kanjiFont, kanjiText.c_str(), (Vector2){ (float)xPosW, (float)yPosW}, fontSize, 0, textColor);
                     }
             EndDrawing();
