@@ -18,3 +18,7 @@ Max/Samples/CartoonBell.wav
 Max/Samples/Hihats/
 .DS_Store
 font/hiragino-kaku-gothic-pro-w3.ttx
+csound6.18.1_11/
+.dgit/
+.dgitignore
+.dgitconfig

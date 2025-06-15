@@ -2,21 +2,18 @@ cmake_minimum_required(VERSION 3.10)
 
 project(KanjiStudyJam)
 
-# C++17 oder höher verwenden
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Include-Verzeichnisse
 include_directories(
     include
     include/sqlite3/include
     include/raylib/include
     include/glfw3/include
     include/oscpack/ip
-    include/oscpack     # nur Header, keine lib!
+    include/oscpack
 )
 
-# Library-Verzeichnisse
 link_directories(
     ${PROJECT_SOURCE_DIR}/lib
     ${PROJECT_SOURCE_DIR}/include/raylib/lib
@@ -53,7 +50,7 @@ if (WIN32)
         PRIVATE glfw3dll
     )
 
-    add_custom_command(TARGET kangamus POST_BUILD
+    add_custom_command(TARGET KanjiStudyJam POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${PROJECT_SOURCE_DIR}/include/sqlite3/bin/sqlite3.dll
             ${PROJECT_BINARY_DIR}/$<CONFIG>/sqlite3.dll
@@ -67,7 +64,7 @@ if (WIN32)
 endif()
 
 if (UNIX AND NOT APPLE)
-    target_link_libraries(kangamus
+    target_link_libraries(KanjiStudyJam
         PRIVATE GL
         PRIVATE m
         PRIVATE pthread
