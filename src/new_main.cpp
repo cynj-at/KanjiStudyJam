@@ -1579,7 +1579,7 @@ int main() {
                     
                 }
                 // disable / enable show Keywords!
-                if (showKeywords = true){
+                if (showKeywords == true){
                     if (!all_Kanji.empty()){
                         KanjiEntry lastKanji = all_Kanji.back();
                         std::vector<std::string> kanjisKeywords = lastKanji.kanji.getKeywords();
