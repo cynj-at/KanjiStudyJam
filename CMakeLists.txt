@@ -15,7 +15,7 @@ include_directories(
 )
 
 link_directories(
-    ${PROJECT_SOURCE_DIR}/lib
+    # ${PROJECT_SOURCE_DIR}/lib
     ${PROJECT_SOURCE_DIR}/include/raylib/lib
     ${PROJECT_SOURCE_DIR}/include/sqlite3/lib
     ${PROJECT_SOURCE_DIR}/include/glfw3/lib
