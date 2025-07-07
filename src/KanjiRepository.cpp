@@ -1,6 +1,7 @@
 // KanjiRepository.cpp
 #include <vector>
 #include "KanjiRepository.hpp"
+#include <set>
 
 std::vector<Kanji> KanjiRepository::loadFromDatabase(const char* dbPath) {
         //std::string databasePath = getResourcePath("kanji", "db");
@@ -48,4 +49,32 @@ std::vector<Kanji> KanjiRepository::loadFromDatabase(const char* dbPath) {
             }
         }
         return Kanji_vec;
+    };
+
+std::set<int> KanjiRepository::askedIndices;
+
+Kanji KanjiRepository::getRandomKanji(const std::vector<Kanji>& kanjiVec) {
+    if (askedIndices.size() == kanjiVec.size()) {
+        std::cerr << "All Kanji have been asked already!" << std::endl;
+        exit(EXIT_FAILURE);
     }
+
+    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+    int randomIndex;
+    do {
+        randomIndex = std::rand() % kanjiVec.size();
+    } while (askedIndices.find(randomIndex) != askedIndices.end());
+    askedIndices.insert(randomIndex);
+    return kanjiVec[randomIndex];
+};
+
+void KanjiRepository::removeEntriesWithInstrCounter(std::vector<KanjiEntry>& entries, int valueToRemove) {
+    // Use std::remove_if to move the elements to be removed to the end
+    // and get an iterator to the new end of the vector
+    auto newEnd = std::remove_if(entries.begin(), entries.end(),
+                                 [valueToRemove](const KanjiEntry& entry) {
+                                     return entry.instrCounter == valueToRemove;
+                                 });
+    // Use vector::erase to actually remove the elements
+    entries.erase(newEnd, entries.end());
+}

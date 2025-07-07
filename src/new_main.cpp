@@ -12,6 +12,8 @@
 #include "kanji.hpp"
 #include "extractStrToVec.hpp"
 #include "KanjiRepository.hpp"
+#include "inputUtils.hpp"
+#include "getterUtils.hpp"
 #include <unistd.h>
 #include <set>
 #include "oscFunctions.hpp"
@@ -19,8 +21,6 @@
 #include <chrono>
 #include <CoreFoundation/CoreFoundation.h>
 #include <filesystem>
-
-namespace fs = std::filesystem;
 
 //globals
 #define MAX_INPUT_CHARS_ROUND 4
@@ -31,25 +31,6 @@ namespace fs = std::filesystem;
 int ran = 2200;
 bool showKeywords = true;
 
-
-std::string getResourcePath(const std::string& resourceName, const std::string& resourceType) {
-    CFBundleRef bundle = CFBundleGetMainBundle();
-    if (bundle) {
-        CFURLRef resourceURL = CFBundleCopyResourceURL(bundle, CFStringCreateWithCString(NULL, resourceName.c_str(), kCFStringEncodingUTF8), CFStringCreateWithCString(NULL, resourceType.c_str(), kCFStringEncodingUTF8), NULL);
-        if (resourceURL) {
-            CFStringRef resourcePath = CFURLCopyFileSystemPath(resourceURL, kCFURLPOSIXPathStyle);
-            if (resourcePath) {
-                std::string path(CFStringGetCStringPtr(resourcePath, kCFStringEncodingUTF8));
-                CFRelease(resourcePath);
-                CFRelease(resourceURL);
-                return path;
-            }
-            CFRelease(resourceURL);
-        }
-    }
-    return "";
-}
-
 Font kanjiFont;
 static void DrawTextBoxed(Font font, const char *text, Rectangle rec, float fontSize, float spacing, bool wordWrap, Color tint); 
 
@@ -58,150 +39,8 @@ void DrawTextB(const char *txt, int x, int y, int fS, Color col)
     DrawTextEx(kanjiFont, txt, (Vector2){ static_cast<float>(x), static_cast<float>(y) }, static_cast<float>(fS), 1.0f, col);
 }
 
-
-// german keyboard
-std::map<int, std::string> keyToChar = {
-    {KEY_A, "a"}, {KEY_B, "b"}, {KEY_C, "c"}, {KEY_D, "d"}, {KEY_E, "e"},
-    {KEY_F, "f"}, {KEY_G, "g"}, {KEY_H, "h"}, {KEY_I, "i"}, {KEY_J, "j"},
-    {KEY_K, "k"}, {KEY_L, "l"}, {KEY_M, "m"}, {KEY_N, "n"}, {KEY_O, "o"},
-    {KEY_P, "p"}, {KEY_Q, "q"}, {KEY_R, "r"}, {KEY_S, "s"}, {KEY_T, "t"},
-    {KEY_U, "u"}, {KEY_V, "v"}, {KEY_W, "w"}, {KEY_X, "x"}, {KEY_Y, "z"},
-    {KEY_Z, "y"}, {KEY_ZERO, "0"}, {KEY_ONE, "1"}, {KEY_TWO, "2"},
-    {KEY_THREE, "3"}, {KEY_FOUR, "4"}, {KEY_FIVE, "5"}, {KEY_SIX, "6"},
-    {KEY_SEVEN, "7"}, {KEY_EIGHT, "8"}, {KEY_NINE, "9"},
-    {KEY_SPACE, " "}, {KEY_COMMA, ","}, {KEY_PERIOD, "."}, {KEY_SLASH, "-"},
-    {KEY_SEMICOLON, ";"}, {KEY_EQUAL, "ß"}, {KEY_MINUS, "'"},
-    {KEY_APOSTROPHE, "ä"}, {KEY_LEFT_BRACKET, "ü"}, {KEY_BACKSLASH, "#"},
-    {KEY_RIGHT_BRACKET, "+"}, {KEY_GRAVE, "^"}, {KEY_BACKSPACE, "\b"}
-};
-
-//old unix getcwd
-// Function to get the current working directory
-// std::string getCurrentWorkingDirectory() {
-//     char cwd[1024];
-//     if (getcwd(cwd, sizeof(cwd)) != nullptr) {
-//         return std::string(cwd);
-//     } else {
-//         perror("getcwd() error");
-//         return "";
-//     }
-// }
-
-
-std::string getCurrentWorkingDirectory() {
-    try {
-        return fs::current_path().string();
-    } catch (const fs::filesystem_error& e) {
-        // Optional: Fehler ausgeben
-        std::cerr << "Fehler beim Abrufen des aktuellen Verzeichnisses: " << e.what() << std::endl;
-        return "";
-    }
-}
-
-
-std::string GetCharFromKey(int key, bool shiftPressed) {
-    if (keyToChar.find(key) != keyToChar.end()) {
-        std::string character = keyToChar[key];
-        if (shiftPressed) {
-            if (character[0] >= 'a' && character[0] <= 'z') {
-                character[0] = character[0] - 'a' + 'A';
-                return character;
-            }
-            if (character == "1") return "!";
-            if (character == "2") return "\"";
-            if (character == "3") return "§";
-            if (character == "4") return "$";
-            if (character == "5") return "%";
-            if (character == "6") return "&";
-            if (character == "7") return "/";
-            if (character == "8") return "(";
-            if (character == "9") return ")";
-            if (character == "0") return "=";
-            if (character == "-") return "_";
-            if (character == "'") return "*";
-            if (character == ",") return ";";
-            if (character == ".") return ":";
-            if (character == "#") return "'";
-            if (character == "ß") return "?";
-            if (character == "ä") return "Ä";
-            if (character == "ü") return "Ü";
-            if (character == "+") return "*";
-            if (character == "^") return "°";
-            return character;
-        }
-        return character;
-    }
-    return "";
-}
-
-
-
-
-Kanji getRandomKanji(const std::vector<Kanji>& kanjiVec);
-std::string toLowerCase(const std::string& str);
-bool checkKeyword(const Kanji& rand_kanji, const std::string& inp);
-std::set<int> askedIndices;
-
 // load all Kanji into Vector
 std::vector<Kanji> allKanji = KanjiRepository::loadFromDatabase("./db/kanji.db");
-
-
-
-Kanji getRandomKanji(const std::vector<Kanji>& kanjiVec) {
-    if (askedIndices.size() == kanjiVec.size()) {
-        std::cerr << "All Kanji have been asked already!" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
-    int randomIndex;
-    do {
-        randomIndex = std::rand() % kanjiVec.size();
-    } while (askedIndices.find(randomIndex) != askedIndices.end());
-
-    askedIndices.insert(randomIndex);
-    return kanjiVec[randomIndex];
-}
-
-int getRandomNumber(int startValue, int endValue, int steps){
-    std::vector<int> values;
-    for (int i = startValue; i <= endValue; i+= steps){
-        values.push_back(i);
-    }
-    // Seed the random number generator
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
-
-    // Pick a random index
-    int random_index = std::rand() % values.size();
-
-    // Return the value at the random index
-    return values[random_index];
-}
-
-
-std::string toLowerCase(const std::string& str) {
-    std::string result = "";
-    for (char ch : str) {
-        result += tolower(ch);
-    }
-    result.erase(std::remove_if(result.begin(), result.end(), [](char c) {
-        return std::isspace(c) || c == '-' || c == '\'' || c == '.';
-    }), result.end());
-    return result;
-}
-
-bool checkKeyword(const Kanji& rand_kanji, const std::string& inp) {
-    if (inp == "#"){
-        return true;
-    }else{
-        std::string inp_low = toLowerCase(inp);
-        const auto& keywords = rand_kanji.getKeywords();
-        return std::any_of(keywords.begin(), keywords.end(), [&inp_low](const std::string& keyword) {
-            return toLowerCase(keyword) == inp_low;
-        });
-    }
-    
-}
 
 bool CheckMouseOver(Rectangle rect) {
     Vector2 mousePos = GetMousePosition();
@@ -212,31 +51,13 @@ bool CheckMouseOver(Rectangle rect) {
 void DrawCenteredText(Font font, const char* text, int posX, int posY, int fontSize, Color color)
 {
     Vector2 textSize = MeasureTextEx(font, text, fontSize, 0);
-
     float textPosX = posX - (textSize.x / 2);
     float textPosY = posY - (textSize.y / 2);
-
     DrawTextEx(font, text, { textPosX, textPosY }, fontSize, 0, color);
 }
 
 
-struct KanjiEntry {
-    Kanji kanji;
-    int instrCounter;
-    bool correct;
-};
 
-void removeEntriesWithInstrCounter(std::vector<KanjiEntry>& entries, int valueToRemove) {
-    // Use std::remove_if to move the elements to be removed to the end
-    // and get an iterator to the new end of the vector
-    auto newEnd = std::remove_if(entries.begin(), entries.end(),
-                                 [valueToRemove](const KanjiEntry& entry) {
-                                     return entry.instrCounter == valueToRemove;
-                                 });
-
-    // Use vector::erase to actually remove the elements
-    entries.erase(newEnd, entries.end());
-}
 
 
 typedef struct {
@@ -267,35 +88,21 @@ bool IsButtonPressed(Button button) {
     return CheckCollisionPointRec(mousePosition, button.bounds) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
 }
 
-bool isDigitString(const char* str) {
-    // Check if each character in the string is a digit
-    for (int i = 0; str[i] != '\0'; i++) {
-        if (!isdigit(str[i])) {
-            return false;
-        }
-    }
-    return true;
-}
+
 
 int main() {
-
-    std::string cwd = getCurrentWorkingDirectory();
+    std::string cwd = GetterUtils::getCurrentWorkingDirectory();
     //std::cout << "Current Directory: " << cwd << std::endl;
     std::vector<Kanji> Kanji_obj = KanjiRepository::loadFromDatabase("./db/kanji.db");
     if (Kanji_obj.empty()) {
         std::cerr << "Error: Kanji_obj is empty or not initialized correctly!" << std::endl;
         exit(EXIT_FAILURE);
     }
-
     //std::string ttf_font = cwd + "/font/Unifontexmono-DYWdE.ttf";
     // std::string cust_font_path = getResourcePath("hiragino-kaku-gothic-pro-w3", "otf");
-
     // std::cout << "Custom Font: " << cust_font_path << std::endl;
     std::string ttf_font = cwd + "/font/hiragino-kaku-gothic-pro-w3.otf";
-
     const char* fontPath = ttf_font.c_str();
-
-    
     // GUI setup
     int screenWidth = 1440; // 1680 normally
     int screenHeight = 720; // 1050 normally
@@ -310,7 +117,6 @@ int main() {
     Color finTextColor = DARKGRAY;
     const Color textColor = DARKGRAY;
     Kanji currentKanji;
-
     int fontSize = 32;
     int fontSizeKanji = 64;
     int counter = 0;
@@ -319,18 +125,14 @@ int main() {
     const int BACKSPACE_DELAY = 5;
     InitWindow(screenWidth, screenHeight, "Kanji Study Jam");
     ToggleFullscreen();
-
     if(IsWindowFullscreen()){
         screenHeight = GetMonitorHeight(GetCurrentMonitor());
         screenWidth = GetMonitorWidth(GetCurrentMonitor());
     }
     //std::cout << screenHeight << screenWidth << std::endl;
-
-
     Font kanjiFont = LoadFontEx(fontPath, 32, 0, 65535); 
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
     SetTextureFilter(kanjiFont.texture, TEXTURE_FILTER_BILINEAR);
-
     int numberOfRounds = 0;
     bool numberOfRoundsNoDigit = false;
     int maxGameKanji = MAX_KANJI_DEFAULT;
@@ -402,8 +204,6 @@ int main() {
     Button roundBasedButton = { { (centerPosX/2.0f)-(buttonWidth/2.0f), (centerPosY)-(buttonHeight/2.0f), buttonWidth, buttonHeight }, LIGHTGRAY, DARKGRAY, GRAY, "Rounds" };
     Button timeBasedButton = { { (centerPosX+(centerPosX/2.0f))-(buttonWidth/2.0f), (centerPosY)-(buttonHeight/2.0f), buttonWidth, buttonHeight}, LIGHTGRAY, DARKGRAY, GRAY, "Time" };
     float playTime;
-
-    
     finTextColor.a = 0;
     std::string finalText = "Thank you for listening!";
     float alphaFinText = 0.0f; // starting with fully transparent text
@@ -412,9 +212,7 @@ int main() {
     double startTimeFinText = 0.0;
     SetTargetFPS(60);
     time_t startTime = 0;
-
     while (!WindowShouldClose()) {
-
         if (IsKeyPressed(KEY_F10)) {
             ToggleFullscreen();
             if (IsWindowFullscreen()) {
@@ -427,14 +225,10 @@ int main() {
             centerPosX = screenWidth / 2.0f;
             centerPosY = screenHeight / 2.0f;
         }
-
         if (!startGame && !resultsWindow && startScreen) {
-
             BeginDrawing();
             ClearBackground(RAYWHITE);
-
             DrawTextB("Choose game mode!", centerPosX - (MeasureTextEx(GetFontDefault(), "Choose game mode!", 40, 0).x / 2), centerPosY - 300, 40, GRAY);
-
             DrawButton(roundBasedButton, fontSize);
             if (IsButtonPressed(roundBasedButton)) {
                 roundBased = true;
@@ -445,7 +239,6 @@ int main() {
                 timeBased = true;
                 startScreen = false;
             }
-
             EndDrawing();
         }
         else if (roundBased && !startGame && !resultsWindow) {
@@ -469,23 +262,18 @@ int main() {
                 mouseOverGameKanjiBox = false;
                 
             }
-
             if (activeTextBox) {
                 SetMouseCursor(MOUSE_CURSOR_IBEAM);
-
                 int key = GetCharPressed();
-
                 if (key != 0) {
                     invalidRound = false;
                     maxGameKanjiWrongValue = false;
-
                     if ((key >= KEY_ZERO && key <= KEY_NINE) && (roundCount < MAX_INPUT_CHARS_ROUND)) {
                         name[roundCount] = (char)key;
                         name[roundCount + 1] = '\0'; // null terminator
                         roundCount++;
                     }
                 }
-
                 if (IsKeyDown(KEY_BACKSPACE)) {
                     if (backspacePressedLastFrame == false) {
                         if (roundCount > 0) {
@@ -509,12 +297,9 @@ int main() {
             } else {
                 SetMouseCursor(MOUSE_CURSOR_DEFAULT);
             }
-
             if (gameKanjiBoxActive) {
                 SetMouseCursor(MOUSE_CURSOR_IBEAM);
-
                 int key = GetCharPressed();
-
                 if (key != 0) {
                     maxGameKanjiWrongValue = false;
                     invalidRound = false;
@@ -525,7 +310,6 @@ int main() {
                         gameKanjiCount++;
                     }
                 }
-
                 if (IsKeyDown(KEY_BACKSPACE)) {
                     if (backspacePressedLastFrame == false) {
                         if (gameKanjiCount > 0) {
@@ -549,7 +333,6 @@ int main() {
             } else {
                 SetMouseCursor(MOUSE_CURSOR_DEFAULT);
             }
-
             if ((IsKeyPressed(KEY_ENTER) && activeTextBox) || (IsKeyPressed(KEY_ENTER) && gameKanjiBoxActive)) {
                 numberOfRounds = atoi(name);
                 std::cout << "Max Game Kanji: " << maxGameKanji << std::endl;
@@ -562,9 +345,6 @@ int main() {
                     maxGameKanji = MAX_KANJI_DEFAULT;
                 }
                 std::cout << numberOfRounds << " " << maxGameKanji << std::endl;
-
-
-                
                 // try {
                 //     if (isDigitString(name)) {
                 //         numberOfRounds = atoi(name);
@@ -586,11 +366,8 @@ int main() {
                 //     maxGameKanjiNoDigit = true;
                 //     std::cerr << "Error: " << e.what() << std::endl;
                 // }
-
-
                 //std::cout << numberOfRounds << std::endl;
                 // Countdown
-
                 if (numberOfRounds >= 1 && numberOfRounds <= maxGameKanji) {
                     for (int i = 0; i < Kanji_obj.size(); i++){
                         if (Kanji_obj[i].getId() <= maxGameKanji){
@@ -598,13 +375,11 @@ int main() {
                         }
                     }
                     sendOSCReset(1);
-                    currentKanji = getRandomKanji(game_Kanji);
-
+                    currentKanji = KanjiRepository::getRandomKanji(game_Kanji);
                     std::cout << currentKanji.getKanji() << game_Kanji.size() << std::endl;
                     for (int i = 5; i > 0; --i) {
                         BeginDrawing();
                         ClearBackground(BLACK);
-
                         DrawText(TextFormat("%d", i), centerPosX - 32, centerPosY - 32, 64, GRAY);
                         EndDrawing();
                         std::cout << i << std::endl;
@@ -617,16 +392,12 @@ int main() {
                     invalidRound = true;
                 }
             }
-
             framesCounter++; // Increment frames counter for cursor blinking
-
             // Drawing
             BeginDrawing();
             ClearBackground(mainColor);
-
             std::string rowString = "Number of Rounds:";
             DrawTextB(rowString.c_str(), textBoxRounds.x, textBoxRounds.y - 80, fontSize, DARKGRAY);
-
             DrawRectangleRec(textBoxRounds, LIGHTGRAY);
             if ((mouseOnTextRounds && !gameKanjiBoxActive) || (activeTextBox && !gameKanjiBoxActive)){
                 DrawRectangleLines((int)textBoxRounds.x, (int)textBoxRounds.y, (int)textBoxRounds.width, (int)textBoxRounds.height, RED);
@@ -635,15 +406,10 @@ int main() {
                 } else {
                     DrawTextB("Backspace to delete...", textBoxRounds.x, textBoxRounds.y + -40, 20, GRAY);
                 }
-                
             } 
             else DrawRectangleLines((int)textBoxRounds.x, (int)textBoxRounds.y, (int)textBoxRounds.width, (int)textBoxRounds.height, DARKGRAY);
-
-            
-
             std::string maxKanjiString = "Max Heisig Index (max 3743, default 2200):";
             DrawTextB(maxKanjiString.c_str(), gameKanjiBox.x, gameKanjiBox.y - 50, 20, DARKGRAY);
-
             DrawRectangleRec(gameKanjiBox, LIGHTGRAY);
             if ((mouseOverGameKanjiBox && !activeTextBox) || (gameKanjiBoxActive && !activeTextBox)){
                 DrawRectangleLines((int)gameKanjiBox.x, (int)gameKanjiBox.y, (int)gameKanjiBox.width, (int)gameKanjiBox.height, RED);
@@ -652,33 +418,25 @@ int main() {
                 } else {
                     DrawTextB("Backspace to delete...", gameKanjiBox.x, gameKanjiBox.y + -25, 20, GRAY);
                 }
-
-                
             } 
             else DrawRectangleLines((int)gameKanjiBox.x, (int)gameKanjiBox.y, (int)gameKanjiBox.width, (int)gameKanjiBox.height, DARKGRAY);
-
-
             DrawTextB(name, (int)textBoxRounds.x + 5, (int)textBoxRounds.y + 8, 40, MAROON);
             DrawTextB(TextFormat("Input: %i/%i", roundCount, MAX_INPUT_CHARS_ROUND), textBoxRounds.x, textBoxRounds.y + 65, 20, DARKGRAY);
             DrawTextB(gameKanji, (int)gameKanjiBox.x + 5, (int)gameKanjiBox.y + 8, 40, MAROON);
             DrawTextB(TextFormat("Input: %i/%i", gameKanjiCount, MAX_INPUT_CHARS_ROUND), gameKanjiBox.x, gameKanjiBox.y + 65, 20, DARKGRAY);
-
             if (gameKanjiCount > 0){
                     char formattedTextGameKanji[100];
                     snprintf(formattedTextGameKanji, sizeof(formattedTextGameKanji), "Max Heisig Index Set to %s", gameKanji);
 
-                    
                     int textWidth = MeasureText(formattedTextGameKanji, 20);
                     DrawText(formattedTextGameKanji, centerPosX - textWidth / 2, centerPosY - 150, 20, RED);
                 }else{
                     char formattedTextGameKanji[100];
                     snprintf(formattedTextGameKanji, sizeof(formattedTextGameKanji), "Max Heisig Index Set to %d", MAX_KANJI_DEFAULT);
 
-                    
                     int textWidth = MeasureText(formattedTextGameKanji, 20);
                     DrawText(formattedTextGameKanji, centerPosX - textWidth / 2, centerPosY - 150, 20, RED);
                 }
-
             DrawTextB("Type rounds and press Enter to start the game!", centerPosX - (MeasureTextEx(GetFontDefault(), "Type rounds and press Enter to start the game!", 20, 0).x / 2), centerPosY + 80, 20, GRAY);
             if (invalidRound) {
                 DrawTextB(TextFormat("Please enter a valid number (between 1 and %d)", maxGameKanji) , textBoxRounds.x, centerPosY + 40, 20, RED);
@@ -691,12 +449,9 @@ int main() {
         } //timeBased
         else if (timeBased && !startGame && !resultsWindow){
             //HideCursor();
-
             static bool setTime = true;
             modeTime = true;
-
             if (setTime){
-                
                 Rectangle recCustomMinutes = {(centerPosX/2.0f)-(buttonWidth/2.0f) + ((buttonWidth + 50)*2), (centerPosY)-(buttonHeight/2.0f), buttonWidth, buttonHeight};
                 if (CheckCollisionPointRec(GetMousePosition(), recCustomMinutes)){
                     mouseOnCustomMinutes = true;
@@ -704,12 +459,10 @@ int main() {
                         customSecondFieldActive = false;
                         gameKanjiBoxActive = false;
                         customMinutesFieldActive = true;
-                        
                     }
                 } else {
                     mouseOnCustomMinutes = false;
                 }
-
                 Rectangle recCustomSeconds = {(centerPosX/2.0f)-(buttonWidth/2.0f) + ((buttonWidth + 50)*3), (centerPosY)-(buttonHeight/2.0f), buttonWidth, buttonHeight};
                 if(CheckCollisionPointRec(GetMousePosition(), recCustomSeconds)){
                     mouseOnCustomSeconds = true;
@@ -717,12 +470,10 @@ int main() {
                         customMinutesFieldActive = false;
                         gameKanjiBoxActive = false;
                         customSecondFieldActive = true;
-                        
                     }
                 } else {
                     mouseOnCustomSeconds = false;
                 }
-
                 if (CheckCollisionPointRec(GetMousePosition(), gameKanjiBox)){
                     mouseOverGameKanjiBox = true;
                     if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
@@ -731,23 +482,18 @@ int main() {
                         gameKanjiBoxActive = true;
                     }
                 }
-
                 if (gameKanjiBoxActive) {
                     SetMouseCursor(MOUSE_CURSOR_IBEAM);
-
                     int key = GetCharPressed();
-
                     if (key != 0) {
                         maxGameKanjiWrongValue = false;
                         invalidRound = false;
-
                         if ((key >= KEY_ZERO && key <= KEY_NINE) && (gameKanjiCount < MAX_INPUT_CHARS_ROUND)) {
                             gameKanji[gameKanjiCount] = (char)key;
                             gameKanji[gameKanjiCount + 1] = '\0'; // null terminator
                             gameKanjiCount++;
                         }
                     }
-
                     if (IsKeyDown(KEY_BACKSPACE)) {
                         if (backspacePressedLastFrame == false) {
                             if (gameKanjiCount > 0) {
@@ -771,16 +517,12 @@ int main() {
                 } else {
                     SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                 }
-
                 if (customMinutesFieldActive) {
                     showTimeMessage10 = false;
                     showTimeMessage5 = false;
                     showCustomTime = true;
-
                     SetMouseCursor(MOUSE_CURSOR_IBEAM);
-
                     int key = GetCharPressed();
-
                     if (key != 0) {
                         invalidMinutes = false;
 
@@ -790,7 +532,6 @@ int main() {
                             minuteCount++;
                         }
                     }
-
                     if (IsKeyDown(KEY_BACKSPACE)) {
                         if (!backspacePressedLastFrameMinute) {
                             if (minuteCount > 0) {
@@ -818,7 +559,6 @@ int main() {
                     showCustomTime = true;
 
                     int key = GetCharPressed();
-
                     if (key != 0) {
                         invalidSeconds = false;
 
@@ -828,7 +568,6 @@ int main() {
                             secondCount++;
                         }
                     }
-
                     if (IsKeyDown(KEY_BACKSPACE)) {
                         if (!backspacePressedLastFrameSecond) {
                             if (secondCount > 0) {
@@ -852,36 +591,24 @@ int main() {
                 } else {
                     SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                 }
-
-                
-                
-
                 framesCounter++;
-
                 BeginDrawing();
                 ClearBackground(mainColor);
-                
-
                 Button time5Button = {{(centerPosX/2.0f)-(buttonWidth/2.0f), (centerPosY)-(buttonHeight/2.0f), buttonWidth, buttonHeight}, LIGHTGRAY, DARKGRAY, GRAY, "5min"};
                 DrawButton(time5Button, fontSize);
                 Button time10Button = {{(centerPosX/2.0f)-(buttonWidth/2.0f) + (buttonWidth + 50), (centerPosY)-(buttonHeight/2.0f), buttonWidth, buttonHeight}, LIGHTGRAY, DARKGRAY, GRAY, "10min"};
                 DrawButton(time10Button, fontSize);
                 DrawRectangleRec(recCustomMinutes, LIGHTGRAY);
-
                 DrawRectangleRec(recCustomMinutes, LIGHTGRAY);
                 if (mouseOnCustomMinutes || customMinutesFieldActive) DrawRectangleLines((int)recCustomMinutes.x, (int)recCustomMinutes.y, (int)recCustomMinutes.width, (int)recCustomMinutes.height, RED);
                 else DrawRectangleLines((int)recCustomMinutes.x, (int)recCustomMinutes.y, (int)recCustomMinutes.width, (int)recCustomMinutes.height, DARKGRAY);
-
                 DrawRectangleRec(recCustomSeconds, LIGHTGRAY);
                 if (mouseOnCustomSeconds || customSecondFieldActive) DrawRectangleLines((int)recCustomSeconds.x, (int)recCustomSeconds.y, (int)recCustomSeconds.width, (int)recCustomSeconds.height, RED);
                 else DrawRectangleLines((int)recCustomSeconds.x, (int)recCustomSeconds.y, (int)recCustomSeconds.width, (int)recCustomSeconds.height, DARKGRAY);
-
                 DrawTextB(customMinutes, (int)recCustomMinutes.x + 5, (int)recCustomMinutes.y + 8, 40, MAROON);
                 DrawTextB(TextFormat("Minutes: %i/%i", minuteCount, MAX_INPUT_CHARS_MINSEC), recCustomMinutes.x, recCustomMinutes.y + 55, 20, DARKGRAY);
-
                 DrawTextB(customSeconds, (int)recCustomSeconds.x + 5, (int)recCustomSeconds.y + 8, 40, MAROON);
                 DrawTextB(TextFormat("Seconds: %i/%i", secondCount, MAX_INPUT_CHARS_MINSEC), recCustomSeconds.x, recCustomSeconds.y + 55, 20, DARKGRAY);
-
                 if (minuteCount < MAX_INPUT_CHARS_MINSEC) {
                     if (customMinutesFieldActive){
                         if (((framesCounter / 20) % 2) == 0) DrawText("_", (int)recCustomMinutes.x + 8 + MeasureText(customMinutes, 40), (int)recCustomMinutes.y + 12, 40, MAROON);
@@ -890,7 +617,6 @@ int main() {
                 } else {
                     DrawTextB("Backspace to delete...", recCustomMinutes.x , recCustomMinutes.y - 40, 20, GRAY);
                 }
-
                 if (secondCount < MAX_INPUT_CHARS_MINSEC) {
                     if (customSecondFieldActive){
                         if (((framesCounter / 20) % 2) == 0) DrawText("_", (int)recCustomSeconds.x + 8 + MeasureText(customSeconds, 40), (int)recCustomSeconds.y + 12, 40, MAROON);
@@ -899,12 +625,9 @@ int main() {
                 } else {
                     DrawTextB("Backspace to delete...", recCustomSeconds.x, recCustomSeconds.y - 40, 20, GRAY);
                 }
-
                 DrawTextB("Either choose or type minutes/seconds and press Enter to start the game!", centerPosX - (MeasureTextEx(GetFontDefault(), "Either choose or type minutes/seconds and press Enter to start the game!", 40, 0).x / 2), centerPosY-400, 40, GRAY);
-
                 std::string maxKanjiString = "Max Heisig Index (max 3743, default 2200):";
                 DrawTextB(maxKanjiString.c_str(), gameKanjiBox.x, gameKanjiBox.y - 50, 20, DARKGRAY);
-
                 DrawRectangleRec(gameKanjiBox, LIGHTGRAY);
                 if ((mouseOverGameKanjiBox && !activeTextBox) || (gameKanjiBoxActive && !activeTextBox)){
                     DrawRectangleLines((int)gameKanjiBox.x, (int)gameKanjiBox.y, (int)gameKanjiBox.width, (int)gameKanjiBox.height, RED);
@@ -913,15 +636,10 @@ int main() {
                     } else {
                         DrawTextB("Backspace to delete...", gameKanjiBox.x, gameKanjiBox.y + -25, 20, GRAY);
                     }
-
-                    
                 } 
                 else DrawRectangleLines((int)gameKanjiBox.x, (int)gameKanjiBox.y, (int)gameKanjiBox.width, (int)gameKanjiBox.height, DARKGRAY);
-
                 DrawTextB(gameKanji, (int)gameKanjiBox.x + 5, (int)gameKanjiBox.y + 8, 40, MAROON);
                 DrawTextB(TextFormat("Input: %i/%i", gameKanjiCount, MAX_INPUT_CHARS_ROUND), gameKanjiBox.x, gameKanjiBox.y + 65, 20, DARKGRAY);
-
-
                 if (showTimeMessage10){
                         DrawTextB("Time set to 10 minutes!", centerPosX - MeasureTextEx(GetFontDefault(), "Time set to 10 minutes!", 20, 0).x / 2, centerPosY - 300, 20, RED);
                     }
@@ -931,7 +649,6 @@ int main() {
                 if (showCustomTime){
                     char formattedTextCustomTime[100];
                     snprintf(formattedTextCustomTime, sizeof(formattedTextCustomTime), "Time set to %s minutes and %s seconds!", customMinutes, customSeconds);
-
                     int textWidth = MeasureText(formattedTextCustomTime, 20);
                     DrawText(formattedTextCustomTime, centerPosX - textWidth / 2, centerPosY - 300, 20, RED);
                 }
@@ -958,7 +675,6 @@ int main() {
                         gameKanji[--gameKanjiCount] = '\0';
                     }
                 }
-
                 if (gameKanjiCount > 0){
                     char formattedTextGameKanji[100];
                     snprintf(formattedTextGameKanji, sizeof(formattedTextGameKanji), "Max Heisig Index Set to %s", gameKanji);
@@ -972,7 +688,6 @@ int main() {
                     int textWidth = MeasureText(formattedTextGameKanji, 20);
                     DrawText(formattedTextGameKanji, centerPosX - textWidth / 2, centerPosY - 150, 20, RED);
                 }
-
                 if (IsButtonPressed(time10Button)){
                     while (minuteCount > 0) {
                         customMinutes[--minuteCount] = '\0';
@@ -988,9 +703,6 @@ int main() {
                     showTimeMessage5 = false;
                     showCustomTime = false;
                     showTimeMessage10 = true;
-
-                    
-                    
                 }
                 if (IsButtonPressed(time5Button)){
                     while (minuteCount > 0) {
@@ -1008,8 +720,6 @@ int main() {
                     showTimeMessage10 = false;
                     showCustomTime = false;
                     showTimeMessage5 = true;
-                    
-                    
                 }
                 if (IsKeyPressed(KEY_ENTER) && (customMinutesFieldActive || customSecondFieldActive || showCustomTime)){
                     totalMinutes = atoi(customMinutes);
@@ -1031,7 +741,6 @@ int main() {
                         invalidMinutes = true;
                         invalidSeconds = true;
                     }
-
                     std::cout << "Minutes: " << totalMinutes<< "\nSeconds: " <<  totalSeconds << "\nMax Kanji: " << maxGameKanji << std::endl;
                 }
                 if (IsKeyPressed(KEY_ENTER) && (showTimeMessage10 || showTimeMessage5)){
@@ -1047,9 +756,7 @@ int main() {
                     setTime = false;
                     // std::cout << "Minutes: " << totalMinutes << "Seconds: " << totalSeconds << "Kanji: " << maxGameKanji << std::endl;
                 }
-
                 EndDrawing();
-
             }else{
                 if (IsKeyPressed(KEY_ENTER)){
                     //maxGameKanji = MAX_KANJI_DEFAULT;
@@ -1059,9 +766,8 @@ int main() {
                             game_Kanji.push_back(Kanji_obj[i]);
                         }
                     }
-
                     sendOSCReset(1);
-                    currentKanji = getRandomKanji(game_Kanji);
+                    currentKanji = KanjiRepository::getRandomKanji(game_Kanji);
                     for (int i = 5; i > 0; --i) {
                         BeginDrawing();
                         ClearBackground(BLACK);
@@ -1096,20 +802,14 @@ int main() {
                 startGame = false;
                 resultsWindow = true;
                 }
-
                 double remainingTime = playTime - elapsedTime;
                 int minutes = static_cast<int>(remainingTime) / 60;
                 int seconds = static_cast<int>(remainingTime) % 60;
-
-                
                 timeStream << "Time: " << minutes << ":" << (seconds < 10 ? "0" : "") << seconds;
                 timeStr = timeStream.str();
             }
-            
-
             bool shiftPressed = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
             int key = GetKeyPressed();
-            
             if (IsKeyDown(KEY_BACKSPACE)) {
                 if (backspacePressedLastFrame == false){
 
@@ -1117,7 +817,6 @@ int main() {
                         inputText.pop_back();
                     }
                     backspacePressedTime = 0;
-                    
                 }
                 else {
                     if (backspacePressedTime > BACKSPACE_DELAY && !inputText.empty()) {
@@ -1155,13 +854,13 @@ int main() {
                             {
                             case 14:
                                 if (wro_Kanji.size()>5){
-                                    removeEntriesWithInstrCounter(all_Kanji, 1);
+                                    KanjiRepository::removeEntriesWithInstrCounter(all_Kanji, 1);
                                     instrCounter = 1;
                                 }
                                 break;
                             case 15:
                                 if (wro_Kanji.size()>10){
-                                    removeEntriesWithInstrCounter(all_Kanji, 2);
+                                    KanjiRepository::removeEntriesWithInstrCounter(all_Kanji, 2);
                                     instrCounter = 2;
                                 }
                             default:
@@ -1170,7 +869,6 @@ int main() {
                             if (instrCounter == 14 && wro_Kanji.size() > 5){
                                 instrCounter = 1;
                             }
-                            
                             eins = zwei = drei = vier = fuenf = sechs = sieben = acht = neun = zehn = elf = zwoelf = dreizehn = vierzehn = fuenfzehn = sechzehn = -1;
                             jlpt = 0;
                             int indx = currentKanji.getId();
@@ -1237,7 +935,7 @@ int main() {
                         }
 
                         if (curStrokeCnt >= 15){
-                            cutOffValue = getRandomNumber(600, 12000, 50);
+                            cutOffValue = GetterUtils::getRandomNumber(600, 12000, 50);
                             sendOSCNCutOffChange(cutOffValue, 5000);
                         }
 
@@ -1246,21 +944,15 @@ int main() {
                             resultText = "Cheater!";
 
                         }else{
-                            inputCorrect = checkKeyword(currentKanji, inputText);
+                            inputCorrect = InputUtils::checkKeyword(currentKanji, inputText);
                             resultText = inputCorrect ? "Correct!" : "Incorrect!";
                         }
-                        
                         // std::cout << mainColor.r << mainColor.g << mainColor.b << std::endl;
-
-                        
-
-                        
                         if (inputCorrect) {
-
                                 if (curJlpt == "NULL") {
-                                    keyChangeValue = getRandomNumber(-800, 800, 50);
+                                    keyChangeValue = GetterUtils::getRandomNumber(-800, 800, 50);
                                     while(keyChangeValue == newKey){
-                                            keyChangeValue = getRandomNumber(-800, 800, 50);
+                                            keyChangeValue = GetterUtils::getRandomNumber(-800, 800, 50);
                                     }
                                     newKey = keyChangeValue;
                                     std::cout << keyChangeValue << ", " << newKey << std::endl;
@@ -1272,7 +964,6 @@ int main() {
                                 //     mainColor.g += 5;
                                 //     mainColor.b += 5;
                                 // }
-
                                 switch (static_cast<int>(partsLength)){
                                 case 1:
                                     note = 48;
@@ -1392,15 +1083,13 @@ int main() {
                                     }
                                     break;
                             }
-                            
-
                             cor_Kanji.push_back(currentKanji);
                             all_Kanji.push_back({currentKanji, instrCounter, true});
                             sendOSCPattern(instrCounter, eins, zwei, drei, vier, fuenf, sechs, sieben, acht, neun, zehn, elf, zwoelf, dreizehn, vierzehn, fuenfzehn, sechzehn);
                             sendOSCNKeyChange(newKey, 4000);
 
                             if (cor_Kanji.size() % 10 == 0){
-                                sendOSCChangeRhythm(getRandomNumber(1, 8, 1));
+                                sendOSCChangeRhythm(GetterUtils::getRandomNumber(1, 8, 1));
                             }
                             
                             
@@ -1416,23 +1105,21 @@ int main() {
                                 wrongKanjiCounter ++;
                                 sendOSCInstrOff(wrongKanjiCounter);
                                 if(wro_Kanji.size()==5){
-                                    removeEntriesWithInstrCounter(all_Kanji, 1);
+                                    KanjiRepository::removeEntriesWithInstrCounter(all_Kanji, 1);
                                 }else if(wro_Kanji.size()==10){
-                                    removeEntriesWithInstrCounter(all_Kanji, 2);
+                                    KanjiRepository::removeEntriesWithInstrCounter(all_Kanji, 2);
                                 }else if(wro_Kanji.size()==15){
-                                    removeEntriesWithInstrCounter(all_Kanji, 3);
+                                    KanjiRepository::removeEntriesWithInstrCounter(all_Kanji, 3);
                                 }else if(wro_Kanji.size()==20){
-                                    removeEntriesWithInstrCounter(all_Kanji, 4);
+                                    KanjiRepository::removeEntriesWithInstrCounter(all_Kanji, 4);
                                 }
                             }
-
                         }
                         inputText = ""; // Clear input after submission
                         kanjiCounter ++;
-
                         if (roundBased){
                             if (++round < numberOfRounds) {
-                                currentKanji = getRandomKanji(game_Kanji);
+                                currentKanji = KanjiRepository::getRandomKanji(game_Kanji);
                             } else {
                                 startGame = false;
                                 resultsWindow = true;
@@ -1440,22 +1127,20 @@ int main() {
                         }
                         if (timeBased){
                             if (elapsedTime < playTime){
-                                currentKanji = getRandomKanji(game_Kanji);
+                                currentKanji = KanjiRepository::getRandomKanji(game_Kanji);
                             } else {
                                 startGame = false;
                                 resultsWindow = true;
                             }
                         }
-                        
                     }
                 } else {
-                    std::string character = GetCharFromKey(key, shiftPressed);
+                    std::string character = InputUtils::getCharFromKey(key, shiftPressed);
                     if (!character.empty()) {
                         inputText += character;
                     }
                 }
             }
-
             // Draw
             BeginDrawing();
             ClearBackground(mainColor);
@@ -1465,41 +1150,19 @@ int main() {
                 if (timeBased){
                      DrawTextB(timeStr.c_str(), screenWidth - 200, 10, 30, BLACK);
                 }
-               
-
                 // Calculate text width for "Kanji: <round>"
                 std::string roundText = "Kanji: " + std::to_string(kanjiCounter + 1);
-                
-
                 DrawCenteredText(kanjiFont, roundText.c_str(), centerPosX, 350, fontSize, DARKGRAY);
-
-
                 std::string kanjiText = currentKanji.getKanji();
-
-
                 DrawCenteredText(kanjiFont, kanjiText.c_str(), centerPosX, centerPosY, fontSizeKanji, textColor);
-                
                 std::string keyWrdText = "What is the keyword?";
-
                 DrawCenteredText(kanjiFont, keyWrdText.c_str(), centerPosX, 70, fontSize, DARKGRAY);
-
-
                 DrawCenteredText(kanjiFont, inputText.c_str(), centerPosX, centerPosY + MeasureTextEx(kanjiFont, (currentKanji.getKanji()).c_str(), fontSizeKanji, 0).y + 30, fontSize, BLACK);
-
-                
                 DrawCenteredText(kanjiFont, resultText.c_str(), centerPosX, centerPosY + MeasureTextEx(kanjiFont, (currentKanji.getKanji()).c_str(), fontSizeKanji, 0).y + 70, fontSize, inputCorrect ? DARKGREEN : DARKPURPLE);
-
-
-
                 int currentInstr = -1;
                 int col = 0;
                 int rowKey;
-
-                
-                
-
                 for (size_t i = 0; i < all_Kanji.size(); ++i){
-                    
                     const KanjiEntry& entry = all_Kanji[i];
                     std::string kanjiText = entry.kanji.getKanji();
                     // std::vector<std::string> kanjisKeywords = entry.kanji.getKeywords();
@@ -1509,17 +1172,11 @@ int main() {
                         currentInstr = entry.instrCounter;
                         col = 0;
                     }
-
                     if (!all_Kanji[i].correct){
                         int xPosR = centerPosX + 200 + col * itemSpacing; 
                         int yPosR = 150 + row * rowSpacing;
-
-                        
-
                         // Draw the text using DrawTextEx
                         DrawTextEx(kanjiFont, kanjiText.c_str(), (Vector2){ (float)xPosR, (float)yPosR}, fontSizeKanji - 12, 0, textColor);
-
-
                         col ++;
                         } else if(all_Kanji[i].correct){
                         int xPosR = 10 + 200 +  col * itemSpacing; 
@@ -1527,12 +1184,8 @@ int main() {
 
                         // Draw the text using DrawTextEx
                         DrawTextEx(kanjiFont, kanjiText.c_str(), (Vector2){ (float)xPosR, (float)yPosR}, fontSizeKanji - 12, 0, textColor);
-                        
                         col ++;
                         }
-
-                        
-                    
                 }
                 // disable / enable show Keywords!
                 if (showKeywords == true){
@@ -1546,38 +1199,28 @@ int main() {
                         }else{
                             rowKey = instrCounter +1;
                         }
-    
                         if (lastKanji.correct){
                                 for (size_t i = 0; i < kanjisKeywords.size(); i++) {
-                                int keyPosY = 150 + rowKey * rowSpacing + i * 32;
-                                DrawTextEx(kanjiFont, kanjisKeywords[i].c_str(), (Vector2){10, (float)keyPosY}, fontSize, 0, textColor);
-                            }
+                                    int keyPosY = 150 + rowKey * rowSpacing + i * 32;
+                                    DrawTextEx(kanjiFont, kanjisKeywords[i].c_str(), (Vector2){10, (float)keyPosY}, fontSize, 0, textColor);
+                                }
                             }else if (!lastKanji.correct){
                                 for (size_t i = 0; i < kanjisKeywords.size(); i++) {
-                                int keyPosY = 150 + rowKey * rowSpacing + i * 32;
-                                DrawTextEx(kanjiFont, kanjisKeywords[i].c_str(), (Vector2){centerPosX + 100, (float)keyPosY}, fontSize, 0, textColor);
-                            }
+                                    int keyPosY = 150 + rowKey * rowSpacing + i * 32;
+                                    DrawTextEx(kanjiFont, kanjisKeywords[i].c_str(), (Vector2){centerPosX + 100, (float)keyPosY}, fontSize, 0, textColor);
+                                }
                             }
                     }
-
                 }
-                
-
-                
                 }
                 EndDrawing();
-        
         }else if (resultsWindow) {
-
-
             if (oscSent) {
                 double elapsedTime = GetTime() - startTimeFinText;
                 alphaFinText = (float)(elapsedTime / 10.0);
                 if (alphaFinText > 1.0f) alphaFinText = 1.0f;
                 finTextColor.a = (unsigned char)(alphaFinText * 255);
             }
-
-
             if (IsKeyPressed(KEY_ENTER)){
                 sendOSCNAutoEnd(1);
                 // std::this_thread::sleep_for(std::chrono::seconds(10));
@@ -1589,14 +1232,12 @@ int main() {
                 //sendOSCNAutoStart(1);
                 //sendOSCNAutoEnd(1);
             }
-            
             BeginDrawing();
             ClearBackground(RAYWHITE);
 
             if (oscSent) {
             DrawCenteredText(kanjiFont, finalText.c_str(), centerPosX, centerPosY, fontSizeKanji, finTextColor);
             }
-        
             std::string resultText = "Results Screen...press Enter to fade out sound ESC to exit.";
             DrawCenteredText(kanjiFont, resultText.c_str(), centerPosX, 20, fontSize, DARKGRAY);
             DrawTextB(("Correct Kanji (" + std::to_string(cor_Kanji.size()) + ") :").c_str(), 10, 50, fontSize, textColor);
@@ -1604,12 +1245,10 @@ int main() {
                 for (size_t i = 0; i < cor_Kanji.size(); ++i) {
                     const Kanji& kanji = cor_Kanji[i];
                     std::string kanjiText = kanji.getKanji();
-
                     int row = i / maxItemsPerRow;
                     int col = i % maxItemsPerRow;
                     int xPosR = 10 + col * itemSpacing; 
                     int yPosR = 85 + row * rowSpacing;
-
                     DrawTextEx(kanjiFont, kanjiText.c_str(), (Vector2){ (float)xPosR, (float)yPosR}, fontSize, 0, textColor);
                     }
             DrawTextB(("Wrong Kanji (" + std::to_string(wro_Kanji.size()) + ") :").c_str(), centerPosX+100, 50, fontSize, textColor);
@@ -1617,12 +1256,10 @@ int main() {
                 for (size_t i = 0; i < wro_Kanji.size(); ++i) {
                     const Kanji& kanji = wro_Kanji[i];
                     std::string kanjiText = kanji.getKanji();
-
                     int row = i / maxItemsPerRow;
                     int col = i % maxItemsPerRow;
                     int xPosW = centerPosX + 100 + col * itemSpacing;
                     int yPosW = 85 + row * rowSpacing;
-
                     DrawTextEx(kanjiFont, kanjiText.c_str(), (Vector2){ (float)xPosW, (float)yPosW}, fontSize, 0, textColor);
                     }
             EndDrawing();
