@@ -4,7 +4,6 @@
 #include <sstream>
 #include <fstream>
 #include <string>
-#include <map>
 #include <algorithm>
 #include <cctype>
 #include <ctime>
@@ -16,12 +15,9 @@
 #include "getterUtils.hpp"
 #include "guiUtils.hpp"
 #include <unistd.h>
-#include <set>
 #include "oscFunctions.hpp"
 #include <thread>
 #include <chrono>
-#include <CoreFoundation/CoreFoundation.h>
-#include <filesystem>
 
 //globals
 #define MAX_INPUT_CHARS_ROUND 4
@@ -56,6 +52,7 @@ int main() {
     int screenHeight = 720; // 1050 normally
     std::vector<Kanji> cor_Kanji;
     std::vector<Kanji> wro_Kanji;
+    int wrong_kanji_modulator = 20;
     std::vector<KanjiEntry> all_Kanji;
     std::vector<Kanji> game_Kanji;
     std::string inputText = "";
@@ -72,7 +69,7 @@ int main() {
     int backspacePressedTime = 0;
     const int BACKSPACE_DELAY = 5;
     InitWindow(screenWidth, screenHeight, "Kanji Study Jam");
-    GUIUtils::InitFont(fontPath);
+    GUIUtils::InitFont(fontPath); //has to be after InitWindow!!!
     ToggleFullscreen();
     if(IsWindowFullscreen()){
         screenHeight = GetMonitorHeight(GetCurrentMonitor());
@@ -882,10 +879,7 @@ int main() {
                             sendOSCNoteLength(instrCounter, noteLength);
                         }
 
-                        if (curStrokeCnt >= 15){
-                            cutOffValue = GetterUtils::getRandomNumber(600, 12000, 50);
-                            sendOSCNCutOffChange(cutOffValue, 5000);
-                        }
+                        
 
                         if (inputText == "#"){
                             inputCorrect = true;
@@ -897,6 +891,11 @@ int main() {
                         }
                         // std::cout << mainColor.r << mainColor.g << mainColor.b << std::endl;
                         if (inputCorrect) {
+                                if (curStrokeCnt >= 15){
+                                    std::cout << "Stroke count: " << curStrokeCnt << std::endl;
+                                    cutOffValue = GetterUtils::getRandomNumber(600, 12000, 50);
+                                    sendOSCNCutOffChange(cutOffValue, 5000);
+                                }
                                 if (curJlpt == "NULL") {
                                     keyChangeValue = GetterUtils::getRandomNumber(-800, 800, 50);
                                     while(keyChangeValue == newKey){
@@ -1038,6 +1037,7 @@ int main() {
 
                             if (cor_Kanji.size() % 10 == 0){
                                 sendOSCChangeRhythm(GetterUtils::getRandomNumber(1, 8, 1));
+                                std::cout << "Send OSC with new Rhythm Number" << std::endl;
                             }
                             
                             
@@ -1049,16 +1049,16 @@ int main() {
                             
                             wro_Kanji.push_back(currentKanji);
                             all_Kanji.push_back({currentKanji, instrCounter, false});
-                            if (wro_Kanji.size() % 20 == 0){ //original set to 5
+                            if (wro_Kanji.size() % wrong_kanji_modulator == 0){ //original set to 5
                                 wrongKanjiCounter ++;
                                 sendOSCInstrOff(wrongKanjiCounter);
-                                if(wro_Kanji.size()==5){
+                                if(wro_Kanji.size()==wrong_kanji_modulator){
                                     KanjiRepository::removeEntriesWithInstrCounter(all_Kanji, 1);
-                                }else if(wro_Kanji.size()==10){
+                                }else if(wro_Kanji.size()==wrong_kanji_modulator*2){
                                     KanjiRepository::removeEntriesWithInstrCounter(all_Kanji, 2);
-                                }else if(wro_Kanji.size()==15){
+                                }else if(wro_Kanji.size()==wrong_kanji_modulator*3){
                                     KanjiRepository::removeEntriesWithInstrCounter(all_Kanji, 3);
-                                }else if(wro_Kanji.size()==20){
+                                }else if(wro_Kanji.size()==wrong_kanji_modulator*4){
                                     KanjiRepository::removeEntriesWithInstrCounter(all_Kanji, 4);
                                 }
                             }
